@@ -378,20 +378,63 @@ def get_infer_input(input_file, out_file):
             out_file.write('\n')
 
 
+def get_single_infer_input(ner_result):
+    id_type = pd.read_pickle('../data/id_type.pkl')
+    type_index = pd.read_pickle('../data/type_index.pkl')
+    entity_id = pd.read_pickle('../data/entity_id.pkl')
+    id_text = pd.read_pickle('../data/id_text.pkl')
+
+    token_dict = get_token_dict()
+    tokenizer = Tokenizer(token_dict)
+
+    temDict = json.loads(ner_result)
+    text = temDict['text']
+    mention_data = temDict['mention_data']
+    for men in mention_data:
+        mention = men['mention']
+        offset = int(men['offset'])
+        begin = int(offset)+1
+        end = begin + len(mention)
+
+        link_id = get_link_entity_test(mention, entity_id)
+        men['link_id'] = link_id
+        link_data = {'ids': [], 'seg': [],'begin':[],'end':[],'en_type':[]}
+        for id in link_id:
+
+            kb_text = id_text[id]
+            kb_type = type_index[id_type[id][0]]
+            indice, segment = tokenizer.encode(first=text, second=kb_text, max_len=256)
+            link_data['ids'].append(indice)
+            link_data['seg'].append(segment)
+            link_data['begin'].append([begin])
+            link_data['end'].append([end])
+            link_data['en_type'].append([kb_type])
+        men['link_data'] = link_data
+
+    return json.dumps(temDict)
+
+
 
 if __name__ == '__main__':
 
 
-    ## 1.对原始数据库数据和训练数据进行处理
+    # ## 1.对原始数据库数据和训练数据进行处理
     # kb_data_path="../rawData/kb_data"
     # train_file_path = '../rawData/train.json'
     # output_dir = "../data"
     # kb_processing(kb_data_path,train_file_path,output_dir)
+    #
+    # ## 2.获得实体链接的训练语料
+    # get_train_input()
+    #
+    #
+    # ## 3.获得线上推断时的输入数据
+    # #../data/eval_ner_result.json 为通过其它模型得到的命名实体结果，
+    # #../data/eval_link_binary_bert.json 为转换后的实体链接的输入
+    # get_infer_input('../data/eval_ner_result.json', '../data/eval_link_binary_bert.json')
 
-    ## 2.获得实体链接的训练语料
-    get_train_input()
-    ## 3.获得线上推断时的输入数据
-    #../data/eval_ner_result.json 为通过其它模型得到的命名实体结果，
-    #../data/eval_link_binary_bert.json 为转换后的实体链接的输入
-    get_infer_input('../data/eval_ner_result.json', '../data/eval_link_binary_bert.json')
+
+    ## 4.单条推断数据获取，主要是为了线上接口封装
+    ner_result = "{\"mention_data\": [{\"mention\": \"绿箭\", \"ner_num\": 18, \"offset\": \"17\", \"m_pred\": 0.8859046101570129}, {\"mention\": \"罗伊·哈珀\", \"ner_num\": 18, \"offset\": \"9\", \"m_pred\": 0.9425595998764038}, {\"mention\": \"绿箭侠\", \"ner_num\": 18, \"offset\": \"1\", \"m_pred\": 0.9297223687171936}, {\"mention\": \"红箭\", \"ner_num\": 18, \"offset\": \"6\", \"m_pred\": 0.7439121603965759}], \"text_id\": \"88634\", \"text\": \"【绿箭侠】“红箭”罗伊·哈珀退出《绿箭》\"}"
+    get_single_infer_input(ner_result)
 

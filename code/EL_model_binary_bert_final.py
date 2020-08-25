@@ -1,4 +1,4 @@
-
+#coding:utf-8
 import pandas as pd
 from sklearn.model_selection import KFold
 from keras.layers import *
@@ -14,6 +14,9 @@ import json
 import logging
 import argparse
 import os
+from data_util import get_single_infer_input
+
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 logging.basicConfig(level=logging.DEBUG,filename='../mymodel/ED_binary_model_bert.log',filemode='a',
@@ -215,7 +218,7 @@ def train():
 def predict_loss(input_file,out_file,model_index=0):
     out_file=open(out_file,'w')
     result_list=[]
-    with open(input_file, 'r') as f:
+    with open(input_file, 'r',encoding="utf-8") as f:
         for line in f:
             temDict = json.loads(line)
             re_dict = {'text_id': temDict['text_id'], 'text': temDict['text']}
@@ -250,6 +253,36 @@ def predict_loss(input_file,out_file,model_index=0):
     for r in result_list:
         out_file.write(json.dumps(r, ensure_ascii=False))
         out_file.write('\n')
+
+
+def predict_single_loss(input):
+
+    result_list=[]
+    temDict = json.loads(input)
+    re_dict = {'text_id': temDict['text_id'], 'text': temDict['text']}
+    re_dict['mention_data'] = []
+    mention_data = temDict['mention_data']
+    for men in mention_data:
+        men.pop('link_data')
+        men['link_pred']=[0]*len(men['link_id'])
+        re_dict['mention_data'].append(men)
+    result_list.append(re_dict)
+    for i in range(1):
+        filepath_loss = "../mymodel/ED_binary_model_bert_loss.h5_" + str(i)
+        model = link_model()
+        model.load_weights(filepath_loss)
+
+        temDict = json.loads(input)
+        mention_data = temDict['mention_data']
+        re_men_data = result_list[0]['mention_data']
+        for men,re_men in zip(mention_data,re_men_data):
+            if len(men['link_id']) > 0:
+                pred=model.predict(get_input(men['link_data'],mode='test'))
+                re_men['link_pred']=list(np.sum([re_men['link_pred'],list(np.squeeze(pred,axis=-1))],axis=0))
+                print(re_men)
+            else:
+                re_men['link_pred']=[]
+
 
 
 def predict_f1(input_file,out_file,model_index=0):
@@ -290,25 +323,64 @@ def predict_f1(input_file,out_file,model_index=0):
     for r in result_list:
         out_file.write(json.dumps(r, ensure_ascii=False))
         out_file.write('\n')
+
+
+def predict_single_f1(input):
+
+    result_list=[]
+
+    temDict = json.loads(input)
+    re_dict = {'text_id': temDict['text_id'], 'text': temDict['text']}
+    re_dict['mention_data'] = []
+    mention_data = temDict['mention_data']
+    for men in mention_data:
+        men.pop('link_data')
+        men['link_pred']=[0]*len(men['link_id'])
+        re_dict['mention_data'].append(men)
+    result_list.append(re_dict)
+    for i in range(1):
+
+        filepath_loss = "../mymodel/ED_binary_model_bert_f1.h5_" + str(i)
+        model = link_model()
+        model.load_weights(filepath_loss)
+
+        temDict = json.loads(input)
+        mention_data = temDict['mention_data']
+        re_men_data = result_list[0]['mention_data']
+        for men,re_men in zip(mention_data,re_men_data):
+            if len(men['link_id']) > 0:
+                pred=model.predict(get_input(men['link_data'],mode='test'))
+                re_men['link_pred']=list(np.sum([re_men['link_pred'],list(np.squeeze(pred,axis=-1))],axis=0))
+                print(re_men)
+            else:
+                re_men['link_pred']=[]
+
+
+
+
 if __name__ == '__main__':
 
     ## 1.实体链接模型训练
-    train()
+    # train()
 
 
-    ## 2.线上推断
-    predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_1.json', model_index=1)
-    predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_4.json', model_index=4)
-    predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_0.json', model_index=0)
-    predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_2.json', model_index=2)
-    predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_3.json', model_index=3)
-    predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_0.json', model_index=0)
-    predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_1.json', model_index=1)
-    predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_2.json', model_index=2)
-    predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_3.json', model_index=3)
-    predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_4.json', model_index=4)
+    ## 2.批量线上推断
+    # predict_loss('../data/eval_link_binary_bert.json', '../data/eval_bert_loss_final_1.json', model_index=1)
+    # predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_4.json', model_index=4)
+    # predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_0.json', model_index=0)
+    # predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_2.json', model_index=2)
+    # predict_loss('data/eval_link_binary_bert.json', 'result/eval_bert_loss_final_3.json', model_index=3)
+    # predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_0.json', model_index=0)
+    # predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_1.json', model_index=1)
+    # predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_2.json', model_index=2)
+    # predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_3.json', model_index=3)
+    # predict_f1('data/eval_link_binary_bert.json', 'result/eval_bert_f1_final_4.json', model_index=4)
+
+    # ## 3.单条线上推断
+    # ner_result = "{\"mention_data\": [{\"mention\": \"绿箭\", \"ner_num\": 18, \"offset\": \"17\", \"m_pred\": 0.8859046101570129}, {\"mention\": \"罗伊·哈珀\", \"ner_num\": 18, \"offset\": \"9\", \"m_pred\": 0.9425595998764038}, {\"mention\": \"绿箭侠\", \"ner_num\": 18, \"offset\": \"1\", \"m_pred\": 0.9297223687171936}, {\"mention\": \"红箭\", \"ner_num\": 18, \"offset\": \"6\", \"m_pred\": 0.7439121603965759}], \"text_id\": \"88634\", \"text\": \"【绿箭侠】“红箭”罗伊·哈珀退出《绿箭》\"}"
+    ner_result = '{"mention_data": [{"mention": "绿箭", "ner_num": 18, "offset": "17", "m_pred": 0.8859046101570129}, {"mention": "罗伊·哈珀", "ner_num": 18, "offset": "9", "m_pred": 0.9425595998764038}, {"mention": "绿箭侠", "ner_num": 18, "offset": "1", "m_pred": 0.9297223687171936}, {"mention": "红箭", "ner_num": 18, "offset": "6", "m_pred": 0.7439121603965759}], "text_id": "88634", "text": "【绿箭侠】“红箭”罗伊·哈珀退出《绿箭》"}'
+    input = get_single_infer_input(ner_result)
+    # predict_single_loss(input)
+    predict_single_f1(input)
 
 
-
-
-    pass
